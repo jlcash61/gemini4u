@@ -1,0 +1,14 @@
+[
+  {
+    "sender": "Gemini",
+    "text": "Gemini4U Ready. Type or speak a message below."
+  },
+  {
+    "sender": "You",
+    "text": "my name is jeff"
+  },
+  {
+    "sender": "Gemini",
+    "text": "Hello Jeff!  Nice to meet you.\n"
+  }
+]

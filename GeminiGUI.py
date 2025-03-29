@@ -4,6 +4,8 @@ from assistant import GeminiAssistant
 import pyttsx3
 import speech_recognition as sr
 import threading
+import json
+import os
 
 class GeminiGUI:
     def __init__(self, root):
@@ -18,7 +20,7 @@ class GeminiGUI:
         self.tts.setProperty("voice", self.voices[0].id)
 
         root.title("Gemini4U Assistant")
-        root.geometry("600x540")
+        root.geometry("600x580")
 
         self.chat_log = scrolledtext.ScrolledText(root, wrap=tk.WORD, state='disabled', font=("Consolas", 11))
         self.chat_log.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
@@ -37,7 +39,7 @@ class GeminiGUI:
         self.listen_button.pack(side=tk.RIGHT, padx=(0, 5))
 
         self.voice_frame = tk.Frame(root)
-        self.voice_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
+        self.voice_frame.pack(fill=tk.X, padx=10, pady=(0, 5))
 
         tk.Label(self.voice_frame, text="Voice:").pack(side=tk.LEFT)
         self.voice_dropdown = ttk.Combobox(self.voice_frame, textvariable=self.current_voice, state="readonly")
@@ -45,6 +47,13 @@ class GeminiGUI:
         self.voice_dropdown.pack(side=tk.LEFT, padx=5)
         self.voice_dropdown.bind("<<ComboboxSelected>>", self.change_voice)
 
+        self.save_button = tk.Button(self.voice_frame, text="💾 Save Chat", command=self.save_conversation)
+        self.save_button.pack(side=tk.RIGHT)
+
+        self.history_file = "chat_history.json"
+        self.chat_history = self.load_conversation()
+        for entry in self.chat_history:
+            self.append_text(entry['text'], sender=entry['sender'], log=False)
         self.append_text("Gemini4U Ready. Type or speak a message below.")
 
     def change_voice(self, event=None):
@@ -58,7 +67,7 @@ class GeminiGUI:
         self.tts.say(text)
         self.tts.runAndWait()
 
-    def append_text(self, text, sender="Gemini"):
+    def append_text(self, text, sender="Gemini", log=True):
         self.chat_log.config(state='normal')
         if sender:
             self.chat_log.insert(tk.END, f"{sender}: {text}\n")
@@ -66,6 +75,8 @@ class GeminiGUI:
             self.chat_log.insert(tk.END, f"{text}\n")
         self.chat_log.config(state='disabled')
         self.chat_log.see(tk.END)
+        if log:
+            self.chat_history.append({"sender": sender, "text": text})
 
     def send_message(self, event=None):
         prompt = self.user_input.get().strip()
@@ -76,7 +87,15 @@ class GeminiGUI:
         self.user_input.delete(0, tk.END)
 
         try:
-            response = self.assistant.ask(prompt)
+            # Build short-term memory context
+            context = [
+                f"{entry['sender']}: {entry['text']}"
+                for entry in self.chat_history[-6:]
+            ]
+            context.append(f"You: {prompt}")
+            prompt_with_context = "\n".join(context)
+
+            response = self.assistant.ask(prompt_with_context)
             self.append_text(response)
             self.speak(response)
         except Exception as e:
@@ -101,6 +120,23 @@ class GeminiGUI:
             self.append_text("[Could not understand audio.]", sender=None)
         except sr.RequestError as e:
             self.append_text(f"[Speech recognition error: {e}]", sender=None)
+
+    def save_conversation(self):
+        try:
+            with open(self.history_file, "w") as f:
+                json.dump(self.chat_history, f, indent=2)
+            messagebox.showinfo("Saved", "Conversation saved to chat_history.json")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save: {e}")
+
+    def load_conversation(self):
+        if os.path.exists(self.history_file):
+            try:
+                with open(self.history_file, "r") as f:
+                    return json.load(f)
+            except:
+                return []
+        return []
 
 if __name__ == "__main__":
     root = tk.Tk()
